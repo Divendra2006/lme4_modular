@@ -1,4 +1,4 @@
-# Diagonal structured covariance matrix using lme4::modular
+## Diagonal random-effects covariance matrix using the lme4::modular
 Implements a diagonal random effects covariance matrix using `lme4` and compares results with `glmmTMB`.
 
 ### Observation
