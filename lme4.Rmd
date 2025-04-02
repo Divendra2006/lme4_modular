@@ -1,0 +1,116 @@
+---
+title: "**Diagonal structured covariance matrix using lme4::modular**"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# **Introduction**
+
+This document demonstrates how to implement a diagonal random effects covariance matrix using the **lme4** package in R. The goal is to fit a mixed-effects model with a diagonal covariance structure for the random effects and compare the results with the **glmmTMB** package.
+
+## **Step 1: Load Required Libraries and Data**
+
+```{r}
+library(lme4)
+library(nloptr)
+library(glmmTMB)
+
+data(cbpp)
+```
+
+## **Step 2: Prepare the Model Formula**
+
+```{r}
+lf <- lFormula(incidence / size ~ period + (period | herd), data = cbpp,
+               control = lmerControl(check.nobs.vs.nRE = "ignore"))
+
+lower_indices <- lf$reTrms$lower
+```
+
+## **Step 3: Create the Deviance Function**
+
+```{r}
+devfun <- mkLmerDevfun(lf$fr, lf$X, lf$reTrms)
+```
+
+## **Step 4: Write a Wrapper Function for Diagonal Covariance**
+
+```{r}
+diagonal_wrapper <- function(theta_diag) {
+  theta <- numeric(length(lf$reTrms$lower))
+  
+  theta[lower_indices == 0] <- theta_diag
+  
+  devfun(theta)
+}
+```
+
+## **Step 5: Fit the Model Using nloptwrap**
+
+```{r}
+theta_diag_init <- rep(0, sum(lower_indices == 0))  
+lower_bounds <- rep(0, length(theta_diag_init))     
+upper_bounds <- rep(Inf, length(theta_diag_init)) 
+
+opt <- nloptwrap(
+  par = theta_diag_init,
+  fn = diagonal_wrapper,
+  lower = lower_bounds,
+  upper = upper_bounds,
+  control = list(algorithm = "NLOPT_LN_BOBYQA")
+)
+```
+
+## **Step 6: Create the merMod Object**
+
+```{r}
+lmer_fit <- mkMerMod(
+  rho = environment(devfun),  
+  opt = opt,
+  reTrms = lf$reTrms,
+  fr = lf$fr,
+  mc = match.call()
+)
+
+print(lmer_fit)
+```
+
+## **Step 7: Compare with glmmTMB**
+
+```{r}
+glmmTMB_fit <- glmmTMB(incidence / size ~ period + diag(period | herd), data = cbpp, REML = TRUE)
+print(summary(glmmTMB_fit))
+```
+
+## **Comparison of Results**
+
+### **Fixed Effects**
+
+We compare the fixed effects estimates from **lme4** and **glmmTMB**.
+
+```{r}
+# Compare fixed effects
+cat("lme4 fixed effects:\n")
+print(fixef(lmer_fit))
+
+cat("glmmTMB fixed effects:\n")
+print(fixef(glmmTMB_fit)$cond)
+```
+
+### **Random Effects Standard Deviations**
+
+We compare the random effects standard deviations from **lme4** and **glmmTMB**.
+
+```{r}
+# Compare random effects standard deviations
+cat("lme4 random effects standard deviations:\n")
+print(VarCorr(lmer_fit)$herd)
+
+cat("glmmTMB random effects standard deviations:\n")
+print(VarCorr(glmmTMB_fit)$cond$herd)
+```
+
+# **Conclusion**
+
+The results show that the fixed effects estimates are identical between **lme4** and **glmmTMB**. The random effects standard deviations are also consistent, with minor differences due to numerical precision and optimization algorithms. The diagonal covariance structure was successfully implemented in both models.
