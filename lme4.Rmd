@@ -1,5 +1,5 @@
 ---
-title: "**Diagonal random-effects covariance matrix using the lme4::modular framework.**"
+title: "**Diagonal random-effects covariance matrix using the lme4::modular framework**"
 output:
   pdf_document: default
   html_document: default
